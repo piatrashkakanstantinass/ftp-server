@@ -43,9 +43,9 @@ public class FTPSession implements Runnable {
             var inputStream = socket.getInputStream();
             var outputStream = socket.getOutputStream();
             var reader = new BufferedReader(new InputStreamReader(inputStream));
-            var writter = new PrintWriter(outputStream, true);
+            var writer = new PrintWriter(outputStream, true);
 
-            writter.println(genResponse(ReplyType.SERVICE_READY, SERVICE_READY_MSG));
+            writer.println(genResponse(ReplyType.SERVICE_READY, SERVICE_READY_MSG));
 
             while (true) {
                 var line = reader.readLine();
@@ -54,9 +54,9 @@ public class FTPSession implements Runnable {
                 try {
                     var command = CommandParser.parse(line);
                     var reply = command.process(state);
-                    writter.println(genResponse(reply.replyType(), reply.message()));
+                    writer.println(genResponse(reply.replyType(), reply.message()));
                 } catch (CommandProcessingException e) {
-                    writter.println(genResponse(e.getReply(), e.getMessage()));
+                    writer.println(genResponse(e.getReply(), e.getMessage()));
                 }
             }
         } catch (IOException e) {
