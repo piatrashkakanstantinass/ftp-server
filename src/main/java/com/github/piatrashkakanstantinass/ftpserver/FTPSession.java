@@ -4,6 +4,7 @@ import com.github.piatrashkakanstantinass.ftpserver.common.CommandParser;
 import com.github.piatrashkakanstantinass.ftpserver.common.CommandProcessingException;
 import com.github.piatrashkakanstantinass.ftpserver.common.FTPSessionState;
 import com.github.piatrashkakanstantinass.ftpserver.common.ReplyType;
+import com.github.piatrashkakanstantinass.ftpserver.filesystem.FileSystemAccessProvider;
 
 import java.io.BufferedReader;
 import java.io.IOException;
@@ -17,10 +18,11 @@ public class FTPSession implements Runnable {
     private final Socket socket;
     private static final Logger logger = Logger.getLogger(FTPSession.class.getName());
     private static final String SERVICE_READY_MSG = "Service ready";
-    private static final FTPSessionState state = new FTPSessionState();
+    private final FTPSessionState state;
 
-    public FTPSession(Socket socket) {
+    public FTPSession(Socket socket, FileSystemAccessProvider fileSystemAccessProvider) {
         this.socket = socket;
+        state = new FTPSessionState(fileSystemAccessProvider);
     }
 
     private String getSocketString() {
@@ -52,7 +54,7 @@ public class FTPSession implements Runnable {
                 try {
                     var command = CommandParser.parse(line);
                     var reply = command.process(state);
-                    writter.println(genResponse(reply.getReplyType(), reply.getMessage()));
+                    writter.println(genResponse(reply.replyType(), reply.message()));
                 } catch (CommandProcessingException e) {
                     writter.println(genResponse(e.getReply(), e.getMessage()));
                 }
