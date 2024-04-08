@@ -18,6 +18,10 @@ public class PortCommand extends Command {
 
     @Override
     public Reply process(FTPSessionState state) {
+        var handler = state.getDataTransferHandler();
+        handler.setClientAddress(host);
+        handler.setClientPort(port);
+        // TODO: check what to do with current connection
         return new Reply("Ok", ReplyType.COMMAND_OK);
     }
 }
