@@ -1,14 +1,17 @@
 package com.github.piatrashkakanstantinass.ftpserver;
 
 import com.github.piatrashkakanstantinass.ftpserver.filesystem.FileSystem;
-import com.github.piatrashkakanstantinass.ftpserver.filesystem.LocalFileSystem;
 import org.jetbrains.annotations.NotNull;
+import org.jetbrains.annotations.Nullable;
 
 import java.io.*;
 import java.net.InetAddress;
 import java.net.Socket;
+import java.util.List;
+import java.util.concurrent.locks.ReentrantLock;
 import java.util.logging.Level;
 import java.util.logging.Logger;
+import java.util.stream.Stream;
 
 public class FTPSession implements Closeable {
     private static final Logger logger = Logger.getLogger(FTPSession.class.getName());
@@ -19,6 +22,9 @@ public class FTPSession implements Closeable {
     private final FileSystem fileSystem;
     private InetAddress hostDataAddress;
     private int hostDataPort;
+    private Socket dataSocket = null;
+    private final ReentrantLock dataConnectionLock = new ReentrantLock();
+
     private final Thread controlThread = new Thread(() -> {
         logger.log(Level.INFO, "User connected");
         try {
@@ -64,6 +70,45 @@ public class FTPSession implements Closeable {
             throw new EOFException("Command expected");
         }
         return line;
+    }
+
+    public void sendData(@NotNull List<String> input) {
+        try {
+            dataConnectionLock.lock();
+            var writer = new BufferedWriter(new OutputStreamWriter(dataSocket.getOutputStream()));
+            input.forEach(inp -> {
+                try {
+                    System.out.println(inp);
+                    writer.write(inp);
+                    writer.write("\r\n");
+                    writer.flush();
+                } catch (IOException e) {
+                    throw new RuntimeException(e);
+                }
+            });
+            dataSocket.close();
+        } catch (IOException | RuntimeException e) {
+            logger.log(Level.WARNING, e.getMessage(), e);
+        } finally {
+            dataSocket = null;
+            dataConnectionLock.unlock();
+        }
+    }
+
+    public @Nullable Socket openNewDataSocket() throws IOException, DataConnectionBusyException {
+        var acquired = dataConnectionLock.tryLock();
+        if (acquired) {
+            try {
+                if (dataSocket == null && hostDataAddress != null) {
+                    dataSocket = new Socket(hostDataAddress, hostDataPort);
+                    return dataSocket;
+                }
+                return null;
+            } finally {
+                dataConnectionLock.unlock();
+            }
+        }
+        throw new DataConnectionBusyException();
     }
 
     public FileSystem getFileSystem() {
