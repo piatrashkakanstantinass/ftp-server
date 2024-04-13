@@ -10,7 +10,9 @@ import java.util.List;
 import java.util.stream.Stream;
 
 public interface FileSystem {
-    String pwd();
+    String pwd() throws IOException;
+
+    void cwd(@NotNull String path) throws IOException;
 
     void setDataType(@NotNull DataType dataType);
 

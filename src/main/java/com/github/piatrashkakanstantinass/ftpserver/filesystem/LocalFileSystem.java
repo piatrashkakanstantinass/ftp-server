@@ -4,10 +4,13 @@ import com.github.piatrashkakanstantinass.ftpserver.DataType;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
+import java.io.Console;
+import java.io.File;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.NotDirectoryException;
 import java.nio.file.Path;
+import java.nio.file.Paths;
 import java.nio.file.attribute.PosixFileAttributes;
 import java.nio.file.attribute.PosixFilePermission;
 import java.nio.file.attribute.PosixFilePermissions;
@@ -15,13 +18,20 @@ import java.util.List;
 import java.util.Set;
 
 public class LocalFileSystem implements FileSystem {
-    private final Path root;
-    private Path currPath;
+    private final File root;
+    private File currFile;
     private DataType dataType = DataType.ASCII_NON_PRINT;
 
     @Override
-    public String pwd() {
-        return "/" + root.relativize(currPath);
+    public String pwd() throws IOException {
+        var rootPath = Paths.get(root.getAbsolutePath());
+        return "/" + rootPath.relativize(Paths.get(getFile(".").getAbsolutePath())).toString();
+    }
+
+    @Override
+    public void cwd(@NotNull String path) throws IOException {
+        var file = getFile(path);
+        currFile = file;
     }
 
     @Override
@@ -31,12 +41,7 @@ public class LocalFileSystem implements FileSystem {
 
     @Override
     public List<String> listFiles(@Nullable String path) throws IOException {
-        var resolvedPath = currPath.resolve(path == null ? "" : path);
-        var file = resolvedPath.toFile();
-        if (!file.isDirectory()) {
-            throw new NotDirectoryException(path);
-        }
-        try (var stream = Files.list(file.toPath())) {
+        try (var stream = Files.list(getFile(path).toPath())) {
             return stream.map(s -> {
                 try {
                     return formatFile(s);
@@ -47,6 +52,24 @@ public class LocalFileSystem implements FileSystem {
         } catch (RuntimeException e) {
             throw new IOException(e);
         }
+    }
+
+    private File getFile(String path) throws IOException {
+        if (path == null) {
+            path = ".";
+        }
+        var actualPath = Paths.get(path);
+        File file;
+        if (actualPath.isAbsolute()) {
+            file = new File(Paths.get(root.getAbsolutePath().toString(), path).toString());
+        } else {
+            file = new File(currFile, path);
+        }
+        if (file.getAbsolutePath().length() < root.getAbsolutePath().length()) {
+            throw new IOException(); // prohibited
+        }
+        System.out.println(file.getAbsoluteFile());
+        return file;
     }
 
     private String formatFile(Path file) throws IOException {
@@ -61,8 +84,8 @@ public class LocalFileSystem implements FileSystem {
         return String.format("%s%s   1 %s   %s   %d %s %s", dirIndicator, permissionString, owner, group, size, lastModified, filename);
     }
 
-    public LocalFileSystem(Path root) {
-        this.root = root;
-        this.currPath = root;
+    public LocalFileSystem(@NotNull Path root) {
+        this.root = new File(root.toAbsolutePath().toString());
+        this.currFile = new File(root.toAbsolutePath().toString());
     }
 }

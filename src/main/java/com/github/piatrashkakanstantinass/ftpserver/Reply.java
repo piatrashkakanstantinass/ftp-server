@@ -6,6 +6,7 @@ public enum Reply {
     READY(220, "Service ready for new user"),
     CLOSING_DATA_SUCCESS(226, "Closing data connection"),
     USER_LOGGED_IN(230, "User logged in, proceed"),
+    FILE_ACTION_OK(250, "Requested file action okay, completed"),
     PATHNAME(257, "Path name"),
     FAILED_TO_OPEN_DATA(425, "Can't open data connection"),
     COMMAND_SYNTAX_ERROR(500, "Syntax error, command unrecognized"),

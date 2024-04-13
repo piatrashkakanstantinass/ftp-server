@@ -4,10 +4,8 @@ import org.jetbrains.annotations.NotNull;
 
 import java.io.IOException;
 import java.net.InetAddress;
-import java.nio.file.NotDirectoryException;
 import java.util.List;
 import java.util.regex.Pattern;
-import java.util.stream.Stream;
 
 public class CommandHandler {
     private final FTPSession ftpSession;
@@ -39,6 +37,9 @@ public class CommandHandler {
                 break;
             case "list":
                 list(args);
+                break;
+            case "cwd":
+                cwd(args);
                 break;
             default:
                 ftpSession.sendControl(Reply.COMMAND_NOT_IMPLEMENTED);
@@ -116,6 +117,20 @@ public class CommandHandler {
         }
         ftpSession.sendData(files);
         ftpSession.sendControl(Reply.CLOSING_DATA_SUCCESS);
+    }
+
+    private void cwd(String path) throws IOException {
+        if (path == null || path.isEmpty()) {
+            ftpSession.sendControl(Reply.COMMAND_PARAMETER_SYNTAX_ERROR);
+            return;
+        }
+        try {
+            ftpSession.getFileSystem().cwd(path);
+        } catch (IOException e) {
+            ftpSession.sendControl(Reply.ACTION_NOT_TAKEN);
+            return;
+        }
+        ftpSession.sendControl(Reply.FILE_ACTION_OK);
     }
 
     // TODO: depending on situation a different action may be taken if socket is simply busy.
