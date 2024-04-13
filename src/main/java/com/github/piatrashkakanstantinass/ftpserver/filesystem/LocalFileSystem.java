@@ -35,6 +35,15 @@ public class LocalFileSystem implements FileSystem {
     }
 
     @Override
+    public void rmd(@NotNull String path) throws IOException {
+        var file = getFile(path);
+        if (file.getAbsolutePath() == root.getAbsolutePath() || !file.isDirectory()) {
+            throw new IOException();
+        }
+        file.delete();
+    }
+
+    @Override
     public void setDataType(@NotNull DataType dataType) {
         this.dataType = dataType;
     }
@@ -61,9 +70,9 @@ public class LocalFileSystem implements FileSystem {
         var actualPath = Paths.get(path);
         File file;
         if (actualPath.isAbsolute()) {
-            file = new File(Paths.get(root.getAbsolutePath().toString(), path).toString());
+            file = new File(Paths.get(root.getAbsolutePath().toString(), path).toString()).getAbsoluteFile();
         } else {
-            file = new File(currFile, path);
+            file = new File(currFile, path).getAbsoluteFile();
         }
         if (file.getAbsolutePath().length() < root.getAbsolutePath().length()) {
             throw new IOException(); // prohibited

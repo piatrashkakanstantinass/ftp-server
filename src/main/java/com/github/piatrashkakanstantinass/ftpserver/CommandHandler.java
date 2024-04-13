@@ -41,6 +41,8 @@ public class CommandHandler {
             case "cwd":
                 cwd(args);
                 break;
+            case "rmd":
+                rmd(args);
             default:
                 ftpSession.sendControl(Reply.COMMAND_NOT_IMPLEMENTED);
                 break;
@@ -126,6 +128,20 @@ public class CommandHandler {
         }
         try {
             ftpSession.getFileSystem().cwd(path);
+        } catch (IOException e) {
+            ftpSession.sendControl(Reply.ACTION_NOT_TAKEN);
+            return;
+        }
+        ftpSession.sendControl(Reply.FILE_ACTION_OK);
+    }
+
+    private void rmd(String path) throws IOException {
+        if (path == null || path.isEmpty()) {
+            ftpSession.sendControl(Reply.COMMAND_PARAMETER_SYNTAX_ERROR);
+            return;
+        }
+        try {
+            ftpSession.getFileSystem().rmd(path);
         } catch (IOException e) {
             ftpSession.sendControl(Reply.ACTION_NOT_TAKEN);
             return;

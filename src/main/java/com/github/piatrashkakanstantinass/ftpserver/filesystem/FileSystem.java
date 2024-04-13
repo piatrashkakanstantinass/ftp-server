@@ -14,6 +14,8 @@ public interface FileSystem {
 
     void cwd(@NotNull String path) throws IOException;
 
+    void rmd(@NotNull String path) throws IOException;
+
     void setDataType(@NotNull DataType dataType);
 
     List<String> listFiles(@Nullable String path) throws IOException;
