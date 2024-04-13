@@ -32,6 +32,7 @@ public class LocalFileSystem implements FileSystem {
     public void cwd(@NotNull String path) throws IOException {
         var file = getFile(path);
         currFile = file;
+        System.out.println("CWD: " + file.getAbsolutePath());
     }
 
     @Override
@@ -40,7 +41,14 @@ public class LocalFileSystem implements FileSystem {
         if (file.getAbsolutePath() == root.getAbsolutePath() || !file.isDirectory()) {
             throw new IOException();
         }
-        file.delete();
+        System.out.println("Deleting " + file.getAbsolutePath());
+        Files.delete(file.toPath());
+    }
+
+    @Override
+    public void mkd(@NotNull String path) throws IOException {
+        var file = getFile(path);
+        file.mkdirs();
     }
 
     @Override

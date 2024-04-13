@@ -78,7 +78,6 @@ public class FTPSession implements Closeable {
             var writer = new BufferedWriter(new OutputStreamWriter(dataSocket.getOutputStream()));
             input.forEach(inp -> {
                 try {
-                    System.out.println(inp);
                     writer.write(inp);
                     writer.write("\r\n");
                     writer.flush();

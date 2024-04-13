@@ -43,6 +43,8 @@ public class CommandHandler {
                 break;
             case "rmd":
                 rmd(args);
+            case "mkd":
+                mkd(args);
             default:
                 ftpSession.sendControl(Reply.COMMAND_NOT_IMPLEMENTED);
                 break;
@@ -147,6 +149,20 @@ public class CommandHandler {
             return;
         }
         ftpSession.sendControl(Reply.FILE_ACTION_OK);
+    }
+
+    private void mkd(String path) throws IOException {
+        if (path == null || path.isEmpty()) {
+            ftpSession.sendControl(Reply.COMMAND_PARAMETER_SYNTAX_ERROR);
+            return;
+        }
+        try {
+            ftpSession.getFileSystem().mkd(path);
+        } catch (IOException e) {
+            ftpSession.sendControl(Reply.ACTION_NOT_TAKEN);
+            return;
+        }
+        ftpSession.sendControl(Reply.PATHNAME, String.format("\"%s\" created", path));
     }
 
     // TODO: depending on situation a different action may be taken if socket is simply busy.
