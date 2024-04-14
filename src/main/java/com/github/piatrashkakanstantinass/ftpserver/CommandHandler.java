@@ -1,180 +1,137 @@
 package com.github.piatrashkakanstantinass.ftpserver;
 
-import org.jetbrains.annotations.NotNull;
-
+import java.io.ByteArrayInputStream;
 import java.io.IOException;
+import java.io.InputStream;
 import java.net.InetAddress;
+import java.nio.charset.StandardCharsets;
 import java.util.List;
 import java.util.regex.Pattern;
 
 public class CommandHandler {
-    private final FTPSession ftpSession;
+    private final FtpSession ftpSession;
+    private final FileSystem fileSystem;
 
-    public CommandHandler(FTPSession ftpSession) {
+    public CommandHandler(FtpSession ftpSession) {
         this.ftpSession = ftpSession;
+        fileSystem = ftpSession.getFileSystem();
     }
 
-    public void handleCommand(@NotNull String command) throws IOException {
-        var firstSpace = command.indexOf(' ');
-        boolean noSpace = false;
-        if (firstSpace == -1) {
-            noSpace = true;
-            firstSpace = command.length();
-        }
-        var args = noSpace ? null : command.substring(firstSpace + 1);
-        switch (command.substring(0, firstSpace).toLowerCase()) {
-            case "user":
-                user(args);
+    public void controlWrite(ReplyCode replyCode) throws IOException {
+        ftpSession.getControlConnection().write(replyCode);
+    }
+
+    public void controlWrite(ReplyCode replyCode, String message) throws IOException {
+        ftpSession.getControlConnection().write(replyCode, message);
+    }
+
+
+    public void user(RequiredStringArg username) throws IOException {
+        controlWrite(ReplyCode.LOGGED_IN);
+    }
+
+    public void pwd() throws IOException {
+        controlWrite(ReplyCode.PATHNAME, String.format("\"%s\" is pwd", fileSystem.pwd()));
+    }
+
+    public void type(RequiredStringArg typeCode) throws IOException {
+        switch (typeCode.getArg().toLowerCase()) {
+            case "i":
+                ftpSession.setFileType(FileType.IMAGE);
                 break;
-            case "pwd":
-                pwd();
+            case "a":
+            case "a n":
+                ftpSession.setFileType(FileType.ASCII_NON_PRINT);
                 break;
-            case "type":
-                type(args);
-                break;
-            case "eprt":
-                eprt(args);
-                break;
-            case "list":
-                list(args);
-                break;
-            case "cwd":
-                cwd(args);
-                break;
-            case "rmd":
-                rmd(args);
-            case "mkd":
-                mkd(args);
             default:
-                ftpSession.sendControl(Reply.COMMAND_NOT_IMPLEMENTED);
-                break;
+                controlWrite(ReplyCode.PARAMETER_NOT_IMPLEMENTED);
+                return;
         }
+        controlWrite(ReplyCode.OK);
     }
 
-    private void user(String username) throws IOException {
-        if (username == null) {
-            ftpSession.sendControl(Reply.COMMAND_PARAMETER_SYNTAX_ERROR);
-            return;
-        }
-        ftpSession.sendControl(Reply.USER_LOGGED_IN);
-    }
-
-    private void pwd() throws IOException {
-        ftpSession.sendControl(Reply.PATHNAME, String.format("\"%s\" is PWD", ftpSession.getFileSystem().pwd()));
-    }
-
-    private void type(String arg) throws IOException {
-        if (arg == null || arg.isEmpty()) {
-            ftpSession.sendControl(Reply.COMMAND_PARAMETER_SYNTAX_ERROR);
-            return;
-        }
-        DataType dataType = null;
-        arg = arg.toLowerCase();
-        switch (arg.charAt(0)) {
-            case 'i':
-                dataType = DataType.IMAGE;
-            case 'a':
-                if (arg.length() == 1) {
-                    dataType = DataType.ASCII_NON_PRINT;
-                } else if (arg.length() == 3 && arg.charAt(1) == ' ') {
-                    if (arg.charAt(2) == 'n') {
-                        dataType = DataType.ASCII_NON_PRINT;
-                    }
-                } else {
-                    ftpSession.sendControl(Reply.COMMAND_PARAMETER_SYNTAX_ERROR);
-                    return;
-                }
-        }
-        if (dataType == null) {
-            ftpSession.sendControl(Reply.COMMAND_PARAMETER_NOT_IMPLEMENTED);
-        } else {
-            ftpSession.getFileSystem().setDataType(dataType);
-            ftpSession.sendControl(Reply.COMMAND_OK);
-        }
-    }
-
-    private void eprt(String arg) throws IOException {
-        if (arg == null || arg.isEmpty()) {
-            ftpSession.sendControl(Reply.COMMAND_PARAMETER_SYNTAX_ERROR);
-            return;
-        }
-        var delimeter = arg.charAt(0);
-        var args = arg.split(Pattern.quote(Character.toString(delimeter)));
-        if (args.length < 4) {
-            ftpSession.sendControl(Reply.COMMAND_PARAMETER_SYNTAX_ERROR);
-            return;
-        }
-        ftpSession.setHostDataAddress(InetAddress.getByName(args[2]), Integer.parseInt(args[3]));
-        ftpSession.sendControl(Reply.COMMAND_OK);
-    }
-
-    private void list(String arg) throws IOException {
-        List<String> files;
+    public void eprt(RequiredStringArg arg) throws IOException {
+        var str = arg.getArg();
+        var delimiter = str.charAt(0);
+        var args = str.split(Pattern.quote(Character.toString(delimiter)));
         try {
-            files = ftpSession.getFileSystem().listFiles(arg);
+            ftpSession.setPort(InetAddress.getByName(args[2]), Integer.parseInt(args[3]));
+        } catch (Exception e) {
+            controlWrite(ReplyCode.PARAMETER_SYNTAX_ERROR);
+            return;
+        }
+        controlWrite(ReplyCode.OK);
+    }
+
+    public void list(String optPath) throws IOException, ReplyCodeException {
+        try {
+            var files = fileSystem.list(optPath);
+            writeDataConnection(files);
         } catch (IOException e) {
-            ftpSession.sendControl(Reply.ACTION_NOT_TAKEN);
+            controlWrite(ReplyCode.FILE_ACTION_NOT_TAKEN);
             return;
         }
-        if (!handleSocketOpen()) {
-            return;
-        }
-        ftpSession.sendData(files);
-        ftpSession.sendControl(Reply.CLOSING_DATA_SUCCESS);
+        controlWrite(ReplyCode.FILE_ACTION_OK);
     }
 
-    private void cwd(String path) throws IOException {
-        if (path == null || path.isEmpty()) {
-            ftpSession.sendControl(Reply.COMMAND_PARAMETER_SYNTAX_ERROR);
-            return;
-        }
+    public void cwd(RequiredStringArg dir) throws IOException {
         try {
-            ftpSession.getFileSystem().cwd(path);
+            fileSystem.cwd(dir.getArg());
         } catch (IOException e) {
-            ftpSession.sendControl(Reply.ACTION_NOT_TAKEN);
+            controlWrite(ReplyCode.ACTION_NOT_TAKEN);
             return;
         }
-        ftpSession.sendControl(Reply.FILE_ACTION_OK);
+        controlWrite(ReplyCode.FILE_ACTION_OK);
     }
 
-    private void rmd(String path) throws IOException {
-        if (path == null || path.isEmpty()) {
-            ftpSession.sendControl(Reply.COMMAND_PARAMETER_SYNTAX_ERROR);
-            return;
-        }
+    public void retr(RequiredStringArg path) throws ReplyCodeException, IOException {
         try {
-            ftpSession.getFileSystem().rmd(path);
+            var inputStream = fileSystem.retr(path.getArg());
+            writeDataConnection(inputStream);
+            inputStream.close();
         } catch (IOException e) {
-            ftpSession.sendControl(Reply.ACTION_NOT_TAKEN);
+            controlWrite(ReplyCode.ACTION_NOT_TAKEN);
             return;
         }
-        ftpSession.sendControl(Reply.FILE_ACTION_OK);
+        controlWrite(ReplyCode.FILE_ACTION_OK);
     }
 
-    private void mkd(String path) throws IOException {
-        if (path == null || path.isEmpty()) {
-            ftpSession.sendControl(Reply.COMMAND_PARAMETER_SYNTAX_ERROR);
-            return;
-        }
+    public void stor(RequiredStringArg path) throws ReplyCodeException, IOException {
         try {
-            ftpSession.getFileSystem().mkd(path);
+            ftpSession.openDataConnection();
+            var inputStream = ftpSession.readDataConnection();
+            fileSystem.stor(path.getArg(), inputStream);
+            ftpSession.closeDataConnection();
         } catch (IOException e) {
-            ftpSession.sendControl(Reply.ACTION_NOT_TAKEN);
-            return;
+            throw new ReplyCodeException(ReplyCode.TRANSFER_ABORTED);
         }
-        ftpSession.sendControl(Reply.PATHNAME, String.format("\"%s\" created", path));
+        controlWrite(ReplyCode.FILE_ACTION_OK);
     }
 
-    // TODO: depending on situation a different action may be taken if socket is simply busy.
-    private boolean handleSocketOpen() throws IOException {
+    private void openDataConnection() throws ReplyCodeException {
         try {
-            var sock = ftpSession.openNewDataSocket();
-            if (sock == null) throw new NullPointerException();
-        } catch (IOException | NullPointerException | DataConnectionBusyException e) {
-            ftpSession.sendControl(Reply.FAILED_TO_OPEN_DATA);
-            return false;
+            ftpSession.openDataConnection();
+        } catch (IOException e) {
+            throw new ReplyCodeException(ReplyCode.FAILED_TO_OPEN_DATA);
         }
-        ftpSession.sendControl(Reply.ABOUT_TO_OPEN_DATA);
-        return true;
+    }
+
+    private void writeDataConnection(List<String> input) throws ReplyCodeException {
+        var outputBuilder = new StringBuilder();
+        for (var value : input) {
+            outputBuilder.append(value);
+            outputBuilder.append("\r\n");
+        }
+        var bytes = outputBuilder.toString().getBytes(StandardCharsets.US_ASCII);
+        writeDataConnection(new ByteArrayInputStream(bytes));
+    }
+
+    private void writeDataConnection(InputStream inputStream) throws ReplyCodeException {
+        openDataConnection();
+        try {
+            ftpSession.writeDataConnection(inputStream);
+        } catch (IOException e) {
+            throw new ReplyCodeException(ReplyCode.TRANSFER_ABORTED);
+        }
     }
 }
