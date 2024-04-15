@@ -2,6 +2,7 @@ package com.github.piatrashkakanstantinass.ftpserver;
 
 import java.io.IOException;
 import java.net.ServerSocket;
+import java.nio.charset.StandardCharsets;
 import java.nio.file.Paths;
 
 public class Main {
@@ -25,6 +26,10 @@ public class Main {
                         while (true) {
                             var commandStr = controlConnection.read();
                             if (commandStr == null) break;
+                            if (!StandardCharsets.US_ASCII.newEncoder().canEncode(commandStr)) {
+                                controlConnection.write(ReplyCode.UNRECOGNIZED); // When dealing with non ascii input
+                                continue;
+                            }
                             var cmd = commandParser.getCommand(commandStr);
                             var arg = CommandParser.getArg(commandStr);
                             if (cmd == null) {
