@@ -118,6 +118,16 @@ public class CommandHandler {
         controlWrite(ReplyCode.FILE_ACTION_OK);
     }
 
+    public void rmd(RequiredStringArg path) throws IOException {
+        try {
+            fileSystem.rmd(path.getArg());
+        } catch (IOException e) {
+            controlWrite(ReplyCode.ACTION_NOT_TAKEN);
+            return;
+        }
+        controlWrite(ReplyCode.FILE_ACTION_OK);
+    }
+
     private void openDataConnection() throws ReplyCodeException {
         try {
             ftpSession.openDataConnection();
