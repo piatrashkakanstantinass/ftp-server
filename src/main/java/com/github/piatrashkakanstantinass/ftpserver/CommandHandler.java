@@ -128,6 +128,16 @@ public class CommandHandler {
         controlWrite(ReplyCode.FILE_ACTION_OK);
     }
 
+    public void mkd(RequiredStringArg path) throws IOException {
+        try {
+            fileSystem.mkd(path.getArg());
+        } catch (IOException e) {
+            controlWrite(ReplyCode.ACTION_NOT_TAKEN);
+            return;
+        }
+        controlWrite(ReplyCode.FILE_ACTION_OK);
+    }
+
     private void openDataConnection() throws ReplyCodeException {
         try {
             ftpSession.openDataConnection();

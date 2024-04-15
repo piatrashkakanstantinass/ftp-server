@@ -95,6 +95,11 @@ public class FileSystem {
         if (!file.isDirectory() || !file.delete()) throw new IOException();
     }
 
+    public void mkd(String path) throws IOException {
+        var file = getAnyFile(path);
+        file.mkdirs();
+    }
+
     private File getFile(String path) throws IOException {
         if (path == null) return currentDirectory;
         var newFile = new File(Paths.get(path).isAbsolute() ? root : currentDirectory, path);
