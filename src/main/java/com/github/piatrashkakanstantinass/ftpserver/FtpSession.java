@@ -7,6 +7,7 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.io.InputStreamReader;
 import java.net.InetAddress;
+import java.net.ServerSocket;
 import java.net.Socket;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Path;
@@ -15,14 +16,19 @@ public class FtpSession implements Closeable {
     private final ControlConnection controlConnection;
     private final CommandParser commandParser = new CommandParser();
     private final FileSystem fileSystem;
+    private final int passiveServerPort;
+    private final ServerSocket passiveServerSocket;
+    private boolean passiveMode = false;
     private com.github.piatrashkakanstantinass.ftpserver.CommandHandler commandHandler;
     private InetAddress inetAddress;
     private int port;
     private DataConnection dataConnection;
     private FileType fileType = FileType.ASCII_NON_PRINT;
 
-    public FtpSession(Socket socket, Path path) throws IOException {
+    public FtpSession(Socket socket, ServerSocket passiveServerSocket, int passiveServerPort, Path path) throws IOException {
         this.controlConnection = new ControlConnection(socket);
+        this.passiveServerSocket = passiveServerSocket;
+        this.passiveServerPort = passiveServerPort;
         fileSystem = new FileSystem(path);
         commandHandler = new CommandHandler(this);
         commandParser.addCommand("user", commandHandler::user);
@@ -38,6 +44,7 @@ public class FtpSession implements Closeable {
         commandParser.addCommand("mkd", commandHandler::mkd);
         commandParser.addCommand("rnfr", commandHandler::rnfr);
         commandParser.addCommand("rnto", commandHandler::rnto);
+        commandParser.addCommand("epsv", commandHandler::epsv);
     }
 
     public ControlConnection getControlConnection() {
@@ -57,8 +64,20 @@ public class FtpSession implements Closeable {
         this.port = port;
     }
 
+    public void setPassiveMode(boolean passiveMode) {
+        this.passiveMode = passiveMode;
+    }
+
+    public int getPassiveServerPort() {
+        return passiveServerPort;
+    }
+
     public void openDataConnection() throws IOException {
         if (dataConnection != null && !dataConnection.isClosed()) return;
+        if (passiveMode) {
+            dataConnection = new DataConnection(passiveServerSocket.accept());
+            return;
+        }
         try {
             dataConnection = new DataConnection(new Socket(inetAddress, port));
         } catch (Exception e) {

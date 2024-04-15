@@ -68,7 +68,6 @@ public class FileSystem {
         var newFile = getFile(path);
         if (!newFile.isDirectory()) throw new IOException(String.format("%s is not a directory", path));
         currentDirectory = newFile;
-        System.out.printf("%s is a directory%n", currentDirectory);
     }
 
     public InputStream retr(String path) throws IOException {

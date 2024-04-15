@@ -56,12 +56,18 @@ public class CommandHandler {
         var delimiter = str.charAt(0);
         var args = str.split(Pattern.quote(Character.toString(delimiter)));
         try {
+            ftpSession.setPassiveMode(false);
             ftpSession.setPort(InetAddress.getByName(args[2]), Integer.parseInt(args[3]));
         } catch (Exception e) {
             controlWrite(ReplyCode.PARAMETER_SYNTAX_ERROR);
             return;
         }
         controlWrite(ReplyCode.OK);
+    }
+
+    public void epsv() throws IOException {
+        ftpSession.setPassiveMode(true);
+        controlWrite(ReplyCode.EPSV_ENTERED, String.format("Entering Extended Passive Mode (|||%d|)", ftpSession.getPassiveServerPort()));
     }
 
     public void list(String optPath) throws IOException, ReplyCodeException {

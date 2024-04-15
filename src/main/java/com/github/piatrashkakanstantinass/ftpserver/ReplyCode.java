@@ -3,6 +3,7 @@ package com.github.piatrashkakanstantinass.ftpserver;
 public enum ReplyCode {
     OK(200, "ok"),
     READY(220, "ready"),
+    EPSV_ENTERED(229),
     LOGGED_IN(230, "logged in"),
     FILE_ACTION_OK(250, "file action ok"),
     PATHNAME(257),
