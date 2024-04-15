@@ -11,6 +11,7 @@ import java.util.regex.Pattern;
 public class CommandHandler {
     private final FtpSession ftpSession;
     private final FileSystem fileSystem;
+    private String renameFromPath = null;
 
     public CommandHandler(FtpSession ftpSession) {
         this.ftpSession = ftpSession;
@@ -137,6 +138,26 @@ public class CommandHandler {
         }
         controlWrite(ReplyCode.FILE_ACTION_OK);
     }
+
+    public void rnfr(RequiredStringArg path) throws IOException {
+        renameFromPath = path.getArg();
+        controlWrite(ReplyCode.PENDING_INFO);
+    }
+
+    public void rnto(RequiredStringArg path) throws IOException {
+        if (renameFromPath == null) {
+            controlWrite(ReplyCode.ACTION_NOT_TAKEN);
+            return;
+        }
+        try {
+            fileSystem.rename(renameFromPath, path.getArg());
+        } catch (IOException e) {
+            controlWrite(ReplyCode.ACTION_NOT_TAKEN);
+            return;
+        }
+        controlWrite(ReplyCode.FILE_ACTION_OK);
+    }
+
 
     private void openDataConnection() throws ReplyCodeException {
         try {

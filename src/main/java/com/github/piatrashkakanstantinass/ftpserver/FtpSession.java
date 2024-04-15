@@ -36,6 +36,8 @@ public class FtpSession implements Closeable {
         commandParser.addCommand("dele", commandHandler::dele);
         commandParser.addCommand("rmd", commandHandler::rmd);
         commandParser.addCommand("mkd", commandHandler::mkd);
+        commandParser.addCommand("rnfr", commandHandler::rnfr);
+        commandParser.addCommand("rnto", commandHandler::rnto);
     }
 
     public ControlConnection getControlConnection() {

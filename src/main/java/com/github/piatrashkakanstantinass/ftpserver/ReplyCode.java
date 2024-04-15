@@ -6,6 +6,7 @@ public enum ReplyCode {
     LOGGED_IN(230, "logged in"),
     FILE_ACTION_OK(250, "file action ok"),
     PATHNAME(257),
+    PENDING_INFO(350, "pending info"),
     FAILED_TO_OPEN_DATA(425, "cannot open data"),
     TRANSFER_ABORTED(426, "transfer aborted"),
     FILE_ACTION_NOT_TAKEN(450, "file action not taken"),

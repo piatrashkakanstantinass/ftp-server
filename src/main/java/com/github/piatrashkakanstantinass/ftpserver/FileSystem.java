@@ -100,6 +100,12 @@ public class FileSystem {
         file.mkdirs();
     }
 
+    public void rename(String oldPath, String newPath) throws IOException {
+        var file = getFile(oldPath);
+        var newFile = getAnyFile(newPath);
+        if (newFile.exists() || !file.renameTo(newFile)) throw new IOException();
+    }
+
     private File getFile(String path) throws IOException {
         if (path == null) return currentDirectory;
         var newFile = new File(Paths.get(path).isAbsolute() ? root : currentDirectory, path);
