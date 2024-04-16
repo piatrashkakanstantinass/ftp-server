@@ -10,9 +10,7 @@ import java.net.Socket;
 public class Session implements Closeable {
     private final Socket socket;
     private final FileSystem fileSystem;
-    private final Object dataSocketLock = new Object();
     private ServerSocket passiveServerSocket;
-    private Socket dataConnectionSocket;
     private boolean closed = false;
     private boolean ascii = true;
 
