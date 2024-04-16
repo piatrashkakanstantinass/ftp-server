@@ -1,6 +1,9 @@
 package com.github.piatrashkakanstantinass.ftpserver;
 
-import java.io.*;
+import java.io.File;
+import java.io.IOException;
+import java.io.InputStream;
+import java.io.OutputStream;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
@@ -11,12 +14,21 @@ import java.text.SimpleDateFormat;
 import java.util.*;
 
 public class FileSystem {
-    private final File root;
-    private File currentDirectory;
+    private final Path root;
+    private Path currentDirectory = Paths.get("/");
 
-    public FileSystem(Path rootPath) {
-        root = new File(rootPath.toString());
-        currentDirectory = this.root;
+    public FileSystem(Path root) {
+        this.root = root;
+    }
+
+    private static boolean deleteDirectory(File directoryToBeDeleted) {
+        File[] allContents = directoryToBeDeleted.listFiles();
+        if (allContents != null) {
+            for (File file : allContents) {
+                deleteDirectory(file);
+            }
+        }
+        return directoryToBeDeleted.delete();
     }
 
     private static String toListTimestamp(long time) {
@@ -31,8 +43,8 @@ public class FileSystem {
         return hourFormat.format(date);
     }
 
-    private static String formatFile(File f) throws IOException {
-        var file = f.toPath();
+    private static String formatFile(Path file) throws IOException {
+        var f = new File(file.toString());
         var dirIndicator = Files.isDirectory(file) ? "d" : "-";
         Set<PosixFilePermission> permissions = Files.getPosixFilePermissions(file);
         String permissionString = PosixFilePermissions.toString(permissions);
@@ -44,87 +56,63 @@ public class FileSystem {
         return String.format("%s%s   1 %s   %s   %d %s %s", dirIndicator, permissionString, owner, group, size, lastModified, filename);
     }
 
+    public List<String> list(String pathname) throws IOException {
+        var path = getPath(pathname);
+        var values = new ArrayList<String>();
+        if (!Files.isDirectory(path)) {
+            values.add(formatFile(path));
+            return values;
+        }
+        try (var stream = Files.newDirectoryStream(path)) {
+            for (var file : stream) {
+                values.add(formatFile(file));
+            }
+        }
+        return values;
+    }
+
+    public boolean cwd(String pathname) {
+        var path = getPath(pathname);
+        if (!Files.isDirectory(path)) return true;
+        currentDirectory = Paths.get("/", root.relativize(path).toString());
+        return false;
+    }
+
+    public InputStream retr(String pathname) throws IOException {
+        var path = getPath(pathname);
+        return Files.newInputStream(path);
+    }
+
+    public OutputStream stor(String pathname) throws IOException {
+        var path = getPath(pathname);
+        return Files.newOutputStream(path);
+    }
+
+    public void dele(String pathname) throws IOException {
+        var path = getPath(pathname);
+        if (Files.isDirectory(path)) throw new IOException();
+        Files.delete(path);
+    }
+
+    public void rmd(String pathname) throws IOException {
+        var path = getPath(pathname);
+        if (!Files.isDirectory(path)) throw new IOException();
+        if (!deleteDirectory(new File(path.toString()))) throw new IOException();
+    }
+
+    public void mkd(String pathname) throws IOException {
+        var path = getPath(pathname);
+        Files.createDirectory(path);
+    }
+
+    private Path getPath(String pathname) {
+        if (pathname == null) pathname = "";
+        var path = currentDirectory.resolve(pathname).normalize();
+        return Paths.get(root.toString(), path.toString());
+    }
+
     public String pwd() {
-        return Paths.get("/", root.toPath().relativize(currentDirectory.toPath()).toString()).toString();
+        return currentDirectory.toString();
     }
 
-    public List<String> list(String optPath) throws IOException {
-        var dir = getFile(optPath);
-        if (!dir.isDirectory() || !dir.exists()) {
-            throw new IOException(String.format("%s is not a directory", optPath));
-        }
-        var files = dir.listFiles();
-        if (files == null) {
-            throw new IOException();
-        }
-        var fileStrs = new ArrayList<String>();
-        for (var file : files) {
-            fileStrs.add(formatFile(file));
-        }
-        return fileStrs;
-    }
-
-    public void cwd(String path) throws IOException {
-        var newFile = getFile(path);
-        if (!newFile.isDirectory()) throw new IOException(String.format("%s is not a directory", path));
-        currentDirectory = newFile;
-    }
-
-    public InputStream retr(String path) throws IOException {
-        var file = getFile(path);
-        if (!file.isFile()) throw new IOException();
-        return new FileInputStream(file);
-    }
-
-    public void stor(String path, InputStream inputStream) throws IOException {
-        var file = getAnyFile(path);
-        file.createNewFile();
-        var outputStream = new FileOutputStream(file);
-        inputStream.transferTo(outputStream);
-        outputStream.close();
-    }
-
-    public void dele(String path) throws IOException {
-        var file = getFile(path);
-        if (file.isDirectory() || !file.delete()) throw new IOException();
-    }
-
-    public void rmd(String path) throws IOException {
-        var file = getFile(path);
-        if (!file.isDirectory() || !file.delete()) throw new IOException();
-    }
-
-    public void mkd(String path) throws IOException {
-        var file = getAnyFile(path);
-        file.mkdirs();
-    }
-
-    public void rename(String oldPath, String newPath) throws IOException {
-        var file = getFile(oldPath);
-        var newFile = getAnyFile(newPath);
-        if (newFile.exists() || !file.renameTo(newFile)) throw new IOException();
-    }
-
-    private File getFile(String path) throws IOException {
-        if (path == null) return currentDirectory;
-        var newFile = new File(Paths.get(path).isAbsolute() ? root : currentDirectory, path);
-        if (!newFile.exists()) {
-            throw new IOException();
-        }
-        var normalizedPath = newFile.toPath().normalize();
-        if (normalizedPath.toString().length() < root.toPath().normalize().toString().length()) {
-            throw new IOException();
-        }
-        return new File(normalizedPath.toString()).getAbsoluteFile();
-    }
-
-    private File getAnyFile(String path) throws IOException {
-        if (path == null) return currentDirectory;
-        var newFile = new File(Paths.get(path).isAbsolute() ? root : currentDirectory, path);
-        var normalizedPath = newFile.toPath().normalize();
-        if (normalizedPath.toString().length() < root.toPath().normalize().toString().length()) {
-            throw new IOException();
-        }
-        return new File(normalizedPath.toString()).getAbsoluteFile();
-    }
 }

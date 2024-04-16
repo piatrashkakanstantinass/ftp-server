@@ -1,194 +1,194 @@
 package com.github.piatrashkakanstantinass.ftpserver;
 
-import java.io.ByteArrayInputStream;
-import java.io.IOException;
-import java.io.InputStream;
-import java.net.InetAddress;
-import java.nio.charset.StandardCharsets;
-import java.util.List;
-import java.util.regex.Pattern;
+import java.io.*;
+import java.net.Socket;
 
 public class CommandHandler {
-    private final FtpSession ftpSession;
-    private final FileSystem fileSystem;
-    private String renameFromPath = null;
-
-    public CommandHandler(FtpSession ftpSession) {
-        this.ftpSession = ftpSession;
-        fileSystem = ftpSession.getFileSystem();
+    public void user(Session session) throws IOException {
+        session.write(Reply.USER_LOGGED_IN);
     }
 
-    public void controlWrite(ReplyCode replyCode) throws IOException {
-        ftpSession.getControlConnection().write(replyCode);
-    }
-
-    public void controlWrite(ReplyCode replyCode, String message) throws IOException {
-        ftpSession.getControlConnection().write(replyCode, message);
-    }
-
-
-    public void user(RequiredStringArg username) throws IOException {
-        controlWrite(ReplyCode.LOGGED_IN);
-    }
-
-    public void pwd() throws IOException {
-        controlWrite(ReplyCode.PATHNAME, String.format("\"%s\" is pwd", fileSystem.pwd()));
-    }
-
-    public void type(RequiredStringArg typeCode) throws IOException {
-        switch (typeCode.getArg().toLowerCase()) {
+    public void type(String type, Session session) throws IOException {
+        switch (type.toLowerCase()) {
             case "i":
-                ftpSession.setFileType(FileType.IMAGE);
+                session.setAscii(false);
                 break;
             case "a":
             case "a n":
-                ftpSession.setFileType(FileType.ASCII_NON_PRINT);
+                session.setAscii(true);
                 break;
             default:
-                controlWrite(ReplyCode.PARAMETER_NOT_IMPLEMENTED);
+                session.write(Reply.SYNTAX_ERROR_IN_PARAMETERS_OR_ARGUMENTS);
+                System.out.println("TYPE " + type);
                 return;
         }
-        controlWrite(ReplyCode.OK);
+        session.write(Reply.COMMAND_OKAY);
     }
 
-    public void eprt(RequiredStringArg arg) throws IOException {
-        var str = arg.getArg();
-        var delimiter = str.charAt(0);
-        var args = str.split(Pattern.quote(Character.toString(delimiter)));
+    public void cwd(String pathname, Session session) throws IOException {
+        if (session.getFileSystem().cwd(pathname)) {
+            session.write(Reply.REQUESTED_ACTION_NOT_TAKEN);
+        } else {
+            session.write(Reply.REQUESTED_FILE_ACTION_OKAY);
+        }
+    }
+
+    public void cdup(Session session) throws IOException {
+        if (session.getFileSystem().cwd("..")) {
+            session.write(Reply.REQUESTED_ACTION_NOT_TAKEN);
+        } else {
+            session.write(Reply.COMMAND_OKAY);
+        }
+    }
+
+    public void pwd(Session session) throws IOException {
+        session.write(Reply.PATHNAME_CREATED, String.format("\"%s\" is current directory", session.getFileSystem().pwd()));
+    }
+
+    public void list(String optPathname, Session session) throws IOException {
+        session.write(Reply.FILE_STATUS_OKAY);
+        var dataSocket = getDataConnection(session);
+        if (dataSocket == null) return;
+        var output = new StringBuilder();
         try {
-            ftpSession.setPassiveMode(false);
-            ftpSession.setPort(InetAddress.getByName(args[2]), Integer.parseInt(args[3]));
-        } catch (Exception e) {
-            controlWrite(ReplyCode.PARAMETER_SYNTAX_ERROR);
+            var files = session.getFileSystem().list(optPathname);
+            for (var file : files) {
+                output.append(file);
+                output.append("\r\n");
+            }
+        } catch (IOException e) {
+            dataSocket.close();
+            session.write(Reply.CONNECTION_CLOSED_TRANSFER_ABORTED);
             return;
         }
-        controlWrite(ReplyCode.OK);
-    }
-
-    public void epsv() throws IOException {
-        ftpSession.setPassiveMode(true);
-        controlWrite(ReplyCode.EPSV_ENTERED, String.format("Entering Extended Passive Mode (|||%d|)", ftpSession.getPassiveServerPort()));
-    }
-
-    public void list(String optPath) throws IOException, ReplyCodeException {
-        try {
-            var files = fileSystem.list(optPath);
-            writeDataConnection(files);
+        try (dataSocket) {
+            dataSocket.getOutputStream().write(output.toString().getBytes());
         } catch (IOException e) {
-            controlWrite(ReplyCode.FILE_ACTION_NOT_TAKEN);
+            session.write(Reply.CONNECTION_CLOSED_TRANSFER_ABORTED);
             return;
         }
-        controlWrite(ReplyCode.FILE_ACTION_OK);
+        session.write(Reply.CLOSING_DATA_CONNECTION);
     }
 
-    public void cwd(RequiredStringArg dir) throws IOException {
+    public void retr(String pathname, Session session) throws IOException {
+        InputStream inputStream;
         try {
-            fileSystem.cwd(dir.getArg());
+            inputStream = session.getFileSystem().retr(pathname);
         } catch (IOException e) {
-            controlWrite(ReplyCode.ACTION_NOT_TAKEN);
+            session.write(Reply.REQUESTED_ACTION_NOT_TAKEN);
             return;
         }
-        controlWrite(ReplyCode.FILE_ACTION_OK);
+        session.write(Reply.FILE_STATUS_OKAY);
+        var dataSocket = getDataConnection(session);
+        if (dataSocket == null) return;
+        try (dataSocket) {
+            if (session.isAscii()) {
+                var reader = new BufferedReader(new InputStreamReader(inputStream));
+                while (true) {
+                    var line = reader.readLine();
+                    if (line == null) break;
+                    dataSocket.getOutputStream().write(line.getBytes());
+                    dataSocket.getOutputStream().write("\r\n".getBytes());
+                }
+            } else {
+                inputStream.transferTo(dataSocket.getOutputStream());
+            }
+        } catch (IOException e) {
+            session.write(Reply.CONNECTION_CLOSED_TRANSFER_ABORTED);
+            return;
+        } finally {
+            if (inputStream != null) inputStream.close();
+        }
+        session.write(Reply.CLOSING_DATA_CONNECTION);
     }
 
-    public void retr(RequiredStringArg path) throws ReplyCodeException, IOException {
+    public void stor(String pathname, Session session) throws IOException {
+        OutputStream outputStream;
         try {
-            var inputStream = fileSystem.retr(path.getArg());
-            writeDataConnection(inputStream);
-            inputStream.close();
+            outputStream = session.getFileSystem().stor(pathname);
         } catch (IOException e) {
-            controlWrite(ReplyCode.ACTION_NOT_TAKEN);
+            session.write(Reply.REQUESTED_ACTION_NOT_TAKEN);
             return;
         }
-        controlWrite(ReplyCode.FILE_ACTION_OK);
-    }
-
-    public void stor(RequiredStringArg path) throws ReplyCodeException, IOException {
-        try {
-            ftpSession.openDataConnection();
-            var inputStream = ftpSession.readDataConnection();
-            fileSystem.stor(path.getArg(), inputStream);
-            ftpSession.closeDataConnection();
+        session.write(Reply.FILE_STATUS_OKAY);
+        var dataSocket = getDataConnection(session);
+        if (dataSocket == null) return;
+        try (dataSocket) {
+            if (session.isAscii()) {
+                var reader = new BufferedReader(new InputStreamReader(dataSocket.getInputStream()));
+                var writer = new BufferedWriter(new OutputStreamWriter(outputStream));
+                while (true) {
+                    var line = reader.readLine();
+                    if (line == null) break;
+                    writer.write(line);
+                    writer.newLine();
+                    writer.flush();
+                }
+            } else {
+                dataSocket.getInputStream().transferTo(outputStream);
+            }
         } catch (IOException e) {
-            throw new ReplyCodeException(ReplyCode.TRANSFER_ABORTED);
+            session.write(Reply.CONNECTION_CLOSED_TRANSFER_ABORTED);
+            return;
+        } finally {
+            if (outputStream != null) outputStream.close();
         }
-        controlWrite(ReplyCode.FILE_ACTION_OK);
+        session.write(Reply.CLOSING_DATA_CONNECTION);
     }
 
-    public void dele(RequiredStringArg path) throws IOException {
+    public void dele(String pathname, Session session) throws IOException {
         try {
-            fileSystem.dele(path.getArg());
+            session.getFileSystem().dele(pathname);
         } catch (IOException e) {
-            controlWrite(ReplyCode.ACTION_NOT_TAKEN);
+            session.write(Reply.REQUESTED_ACTION_NOT_TAKEN);
             return;
         }
-        controlWrite(ReplyCode.FILE_ACTION_OK);
+        session.write(Reply.REQUESTED_FILE_ACTION_OKAY);
     }
 
-    public void rmd(RequiredStringArg path) throws IOException {
+    public void rmd(String pathname, Session session) throws IOException {
         try {
-            fileSystem.rmd(path.getArg());
+            session.getFileSystem().rmd(pathname);
         } catch (IOException e) {
-            controlWrite(ReplyCode.ACTION_NOT_TAKEN);
+            session.write(Reply.REQUESTED_ACTION_NOT_TAKEN);
             return;
         }
-        controlWrite(ReplyCode.FILE_ACTION_OK);
+        session.write(Reply.REQUESTED_FILE_ACTION_OKAY);
     }
 
-    public void mkd(RequiredStringArg path) throws IOException {
+    public void mkd(String pathname, Session session) throws IOException {
         try {
-            fileSystem.mkd(path.getArg());
+            session.getFileSystem().mkd(pathname);
         } catch (IOException e) {
-            controlWrite(ReplyCode.ACTION_NOT_TAKEN);
+            session.write(Reply.REQUESTED_ACTION_NOT_TAKEN);
             return;
         }
-        controlWrite(ReplyCode.FILE_ACTION_OK);
+        session.write(Reply.PATHNAME_CREATED, String.format("\"%s\" created", pathname));
     }
 
-    public void rnfr(RequiredStringArg path) throws IOException {
-        renameFromPath = path.getArg();
-        controlWrite(ReplyCode.PENDING_INFO);
+    public void quit(Session session) throws IOException {
+        session.write(Reply.CLOSING_CONTROL_CONNECTION);
+        session.close();
     }
 
-    public void rnto(RequiredStringArg path) throws IOException {
-        if (renameFromPath == null) {
-            controlWrite(ReplyCode.ACTION_NOT_TAKEN);
+    public void epsv(Session session) throws IOException {
+        int port;
+        try {
+            port = session.openDataPassiveListener();
+        } catch (IOException e) {
+            session.write(Reply.SYNTAX_ERROR_COMMAND_UNRECOGNIZED);
+            System.err.println(e.getMessage());
             return;
         }
-        try {
-            fileSystem.rename(renameFromPath, path.getArg());
-        } catch (IOException e) {
-            controlWrite(ReplyCode.ACTION_NOT_TAKEN);
-            return;
-        }
-        controlWrite(ReplyCode.FILE_ACTION_OK);
+        session.write(Reply.ENTERING_PASSIVE_MODE, String.format("entering passive mode (|||%d|)", port));
     }
 
-
-    private void openDataConnection() throws ReplyCodeException {
+    private Socket getDataConnection(Session session) throws IOException {
         try {
-            ftpSession.openDataConnection();
-        } catch (IOException e) {
-            throw new ReplyCodeException(ReplyCode.FAILED_TO_OPEN_DATA);
-        }
-    }
-
-    private void writeDataConnection(List<String> input) throws ReplyCodeException {
-        var outputBuilder = new StringBuilder();
-        for (var value : input) {
-            outputBuilder.append(value);
-            outputBuilder.append("\r\n");
-        }
-        var bytes = outputBuilder.toString().getBytes(StandardCharsets.US_ASCII);
-        writeDataConnection(new ByteArrayInputStream(bytes));
-    }
-
-    private void writeDataConnection(InputStream inputStream) throws ReplyCodeException {
-        openDataConnection();
-        try {
-            ftpSession.writeDataConnection(inputStream);
-        } catch (IOException e) {
-            throw new ReplyCodeException(ReplyCode.TRANSFER_ABORTED);
+            return session.getDataSocket();
+        } catch (IOException | NullPointerException e) {
+            session.write(Reply.CANT_OPEN_DATA_CONNECTION);
+            return null;
         }
     }
 }
