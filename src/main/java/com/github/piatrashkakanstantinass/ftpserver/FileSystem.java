@@ -106,6 +106,13 @@ public class FileSystem {
         Files.createDirectory(path);
     }
 
+    public void rename(String oldPathname, String newPathname) throws IOException {
+        var oldPath = getPath(oldPathname);
+        var newPath = getPath(newPathname);
+        var oldFile = oldPath.toFile();
+        if (!oldFile.renameTo(newPath.toFile())) throw new IOException();
+    }
+
     private Path getPath(String pathname) {
         if (pathname == null) pathname = "";
         var path = currentDirectory.resolve(pathname).normalize();

@@ -10,12 +10,16 @@ public enum Reply {
     USER_LOGGED_IN(230, "user logged in, proceed"),
     REQUESTED_FILE_ACTION_OKAY(250, "requested file action okay"),
     PATHNAME_CREATED(257),
+    FILE_ACTION_PENDING_INFO(350, "pending further info"),
     CANT_OPEN_DATA_CONNECTION(425, "can't open data connection"),
     CONNECTION_CLOSED_TRANSFER_ABORTED(426, "data connection error"),
     FILE_ACTION_NOT_TAKEN(450, "file action not taken"),
     SYNTAX_ERROR_COMMAND_UNRECOGNIZED(500, "execution failed"),
     SYNTAX_ERROR_IN_PARAMETERS_OR_ARGUMENTS(501, "syntax error in parameters or arguments"),
-    REQUESTED_ACTION_NOT_TAKEN(550, "requested action not taken");
+    BAD_SEQUENCE(503, "bad sequence"),
+    REQUESTED_ACTION_NOT_TAKEN(550, "requested action not taken"),
+    REQUESTED_ACTION_NOT_TAKEN_NOT_ALLOWED(553, "requested action not taken: not allowed"),
+    ;
 
     private final int code;
     private String message;

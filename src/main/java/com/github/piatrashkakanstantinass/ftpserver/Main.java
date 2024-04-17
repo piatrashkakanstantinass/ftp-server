@@ -8,7 +8,7 @@ import java.nio.file.Paths;
 import java.util.HashMap;
 import java.util.Map;
 
-// TODO: ABORT, rename
+// TODO: ABORT
 public class Main {
     private static void registerRequiredArgCommand(String commandStr, Command command, Map<String, CommandInfo> commands) {
         commands.put(commandStr, new CommandInfo(command, CommandArgumentRequirement.ARGUMENT_REQUIRED));
@@ -27,6 +27,8 @@ public class Main {
         registerRequiredArgCommand("dele", commandHandler::dele, commands);
         registerRequiredArgCommand("rmd", commandHandler::rmd, commands);
         registerRequiredArgCommand("mkd", commandHandler::mkd, commands);
+        registerRequiredArgCommand("rnfr", commandHandler::rnfr, commands);
+        registerRequiredArgCommand("rnto", commandHandler::rnto, commands);
         registerNoArgCommand("cdup", commandHandler::cdup, commands);
         registerNoArgCommand("pwd", commandHandler::pwd, commands);
         commands.put("list", new CommandInfo(commandHandler::list, CommandArgumentRequirement.OPTIONAL_ARGUMENT));

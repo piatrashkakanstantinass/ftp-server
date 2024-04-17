@@ -199,6 +199,26 @@ public class CommandHandler {
         session.write(Reply.ENTERING_PASSIVE_MODE, String.format("entering passive mode (|||%d|)", port));
     }
 
+    public void rnfr(String pathname, Session session) throws IOException {
+        session.setRenameFrom(pathname);
+        session.write(Reply.FILE_ACTION_PENDING_INFO);
+    }
+
+    public void rnto(String pathname, Session session) throws IOException {
+        var from = session.getRenameFrom();
+        if (from == null) {
+            session.write(Reply.BAD_SEQUENCE);
+            return;
+        }
+        try {
+            session.getFileSystem().rename(from, pathname);
+        } catch (IOException e) {
+            session.write(Reply.REQUESTED_ACTION_NOT_TAKEN_NOT_ALLOWED);
+            return;
+        }
+        session.write(Reply.REQUESTED_FILE_ACTION_OKAY);
+    }
+
     private Socket getDataConnection(Session session) throws IOException {
         try {
             return session.getDataSocket();

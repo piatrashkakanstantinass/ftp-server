@@ -13,6 +13,7 @@ public class Session implements Closeable {
     private ServerSocket passiveServerSocket;
     private boolean closed = false;
     private boolean ascii = true;
+    private String renameFrom = null;
 
     public Session(Socket socket, FileSystem fileSystem) {
         this.socket = socket;
@@ -58,6 +59,14 @@ public class Session implements Closeable {
 
     public void setAscii(boolean ascii) {
         this.ascii = ascii;
+    }
+
+    public String getRenameFrom() {
+        return renameFrom;
+    }
+
+    public void setRenameFrom(String renameFrom) {
+        this.renameFrom = renameFrom;
     }
 
     @Override
