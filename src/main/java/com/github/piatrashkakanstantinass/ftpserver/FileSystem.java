@@ -43,7 +43,8 @@ public class FileSystem {
         return hourFormat.format(date);
     }
 
-    private static String formatFile(Path file) throws IOException {
+    private static String formatFile(Path file, boolean detailed) throws IOException {
+        if (!detailed) return file.getFileName().toString();
         var f = new File(file.toString());
         var dirIndicator = Files.isDirectory(file) ? "d" : "-";
         Set<PosixFilePermission> permissions = Files.getPosixFilePermissions(file);
@@ -56,16 +57,16 @@ public class FileSystem {
         return String.format("%s%s   1 %s   %s   %d %s %s", dirIndicator, permissionString, owner, group, size, lastModified, filename);
     }
 
-    public List<String> list(String pathname) throws IOException {
+    public List<String> list(String pathname, boolean detailed) throws IOException {
         var path = getPath(pathname);
         var values = new ArrayList<String>();
         if (!Files.isDirectory(path)) {
-            values.add(formatFile(path));
+            values.add(formatFile(path, detailed));
             return values;
         }
         try (var stream = Files.newDirectoryStream(path)) {
             for (var file : stream) {
-                values.add(formatFile(file));
+                values.add(formatFile(file, detailed));
             }
         }
         return values;

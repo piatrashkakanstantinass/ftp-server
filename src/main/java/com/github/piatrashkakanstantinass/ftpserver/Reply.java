@@ -12,6 +12,7 @@ public enum Reply {
     PATHNAME_CREATED(257),
     CANT_OPEN_DATA_CONNECTION(425, "can't open data connection"),
     CONNECTION_CLOSED_TRANSFER_ABORTED(426, "data connection error"),
+    FILE_ACTION_NOT_TAKEN(450, "file action not taken"),
     SYNTAX_ERROR_COMMAND_UNRECOGNIZED(500, "execution failed"),
     SYNTAX_ERROR_IN_PARAMETERS_OR_ARGUMENTS(501, "syntax error in parameters or arguments"),
     REQUESTED_ACTION_NOT_TAKEN(550, "requested action not taken");

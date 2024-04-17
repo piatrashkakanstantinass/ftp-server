@@ -2,6 +2,7 @@ package com.github.piatrashkakanstantinass.ftpserver;
 
 import java.io.*;
 import java.net.Socket;
+import java.util.List;
 
 public class CommandHandler {
     public void user(Session session) throws IOException {
@@ -46,20 +47,35 @@ public class CommandHandler {
     }
 
     public void list(String optPathname, Session session) throws IOException {
+        List<String> files;
+        try {
+            files = session.getFileSystem().list(optPathname, true);
+        } catch (IOException e) {
+            session.write(Reply.FILE_ACTION_NOT_TAKEN);
+            return;
+        }
+        list(files, session);
+    }
+
+    public void nlist(String optPathname, Session session) throws IOException {
+        List<String> files;
+        try {
+            files = session.getFileSystem().list(optPathname, false);
+        } catch (IOException e) {
+            session.write(Reply.FILE_ACTION_NOT_TAKEN);
+            return;
+        }
+        list(files, session);
+    }
+
+    private void list(List<String> files, Session session) throws IOException {
         session.write(Reply.FILE_STATUS_OKAY);
         var dataSocket = getDataConnection(session);
         if (dataSocket == null) return;
         var output = new StringBuilder();
-        try {
-            var files = session.getFileSystem().list(optPathname);
-            for (var file : files) {
-                output.append(file);
-                output.append("\r\n");
-            }
-        } catch (IOException e) {
-            dataSocket.close();
-            session.write(Reply.CONNECTION_CLOSED_TRANSFER_ABORTED);
-            return;
+        for (var file : files) {
+            output.append(file);
+            output.append("\r\n");
         }
         try (dataSocket) {
             dataSocket.getOutputStream().write(output.toString().getBytes());
