@@ -97,25 +97,7 @@ public class CommandHandler {
         session.write(Reply.FILE_STATUS_OKAY);
         var dataSocket = getDataConnection(session);
         if (dataSocket == null) return;
-        try (dataSocket) {
-            if (session.isAscii()) {
-                var reader = new BufferedReader(new InputStreamReader(inputStream));
-                while (true) {
-                    var line = reader.readLine();
-                    if (line == null) break;
-                    dataSocket.getOutputStream().write(line.getBytes());
-                    dataSocket.getOutputStream().write("\r\n".getBytes());
-                }
-            } else {
-                inputStream.transferTo(dataSocket.getOutputStream());
-            }
-        } catch (IOException e) {
-            session.write(Reply.CONNECTION_CLOSED_TRANSFER_ABORTED);
-            return;
-        } finally {
-            if (inputStream != null) inputStream.close();
-        }
-        session.write(Reply.CLOSING_DATA_CONNECTION);
+        dataConnectionTransfer(inputStream, dataSocket.getOutputStream(), session, "\r\n", null);
     }
 
     public void stor(String pathname, Session session) throws IOException {
@@ -129,27 +111,47 @@ public class CommandHandler {
         session.write(Reply.FILE_STATUS_OKAY);
         var dataSocket = getDataConnection(session);
         if (dataSocket == null) return;
-        try (dataSocket) {
-            if (session.isAscii()) {
-                var reader = new BufferedReader(new InputStreamReader(dataSocket.getInputStream()));
-                var writer = new BufferedWriter(new OutputStreamWriter(outputStream));
-                while (true) {
-                    var line = reader.readLine();
-                    if (line == null) break;
-                    writer.write(line);
-                    writer.newLine();
-                    writer.flush();
-                }
-            } else {
-                dataSocket.getInputStream().transferTo(outputStream);
+        dataConnectionTransfer(dataSocket.getInputStream(), outputStream, session, System.lineSeparator(), () -> {
+            try {
+                session.getFileSystem().dele(pathname);
+            } catch (IOException e) {
+                System.err.println(e.getMessage());
             }
-        } catch (IOException e) {
-            session.write(Reply.CONNECTION_CLOSED_TRANSFER_ABORTED);
-            return;
-        } finally {
-            if (outputStream != null) outputStream.close();
-        }
-        session.write(Reply.CLOSING_DATA_CONNECTION);
+        });
+    }
+
+    private void dataConnectionTransfer(InputStream inputStream, OutputStream outputStream, Session session, String newLine, Runnable onFailure) {
+        var ascii = session.isAscii();
+        var thread = new Thread(() -> {
+            try {
+                try (inputStream; outputStream) {
+                    var reader = new BufferedReader(new InputStreamReader(inputStream));
+                    var writer = new BufferedWriter(new OutputStreamWriter(outputStream));
+                    while (true) {
+                        if (Thread.interrupted()) throw new IOException();
+                        if (ascii) {
+                            var line = reader.readLine();
+                            if (line == null) break;
+                            writer.write(line);
+                            writer.write(newLine);
+                        } else {
+                            var buffer = new byte[1024];
+                            if (inputStream.read(buffer) == -1) break;
+                            outputStream.write(buffer);
+                        }
+                    }
+                } catch (IOException e) {
+                    if (onFailure != null) onFailure.run();
+                    session.write(Reply.CONNECTION_CLOSED_TRANSFER_ABORTED);
+                    if (Thread.interrupted()) session.write(Reply.CLOSING_DATA_CONNECTION);
+                }
+                session.write(Reply.CLOSING_DATA_CONNECTION);
+            } catch (IOException e) {
+                System.err.println(e.getMessage());
+            }
+        });
+        session.setDataTransferThread(thread);
+        thread.start();
     }
 
     public void dele(String pathname, Session session) throws IOException {

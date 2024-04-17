@@ -14,6 +14,7 @@ public class Session implements Closeable {
     private boolean closed = false;
     private boolean ascii = true;
     private String renameFrom = null;
+    private Thread dataTransferThread;
 
     public Session(Socket socket, FileSystem fileSystem) {
         this.socket = socket;
@@ -67,6 +68,14 @@ public class Session implements Closeable {
 
     public void setRenameFrom(String renameFrom) {
         this.renameFrom = renameFrom;
+    }
+
+    public Thread getDataTransferThread() {
+        return dataTransferThread;
+    }
+
+    public void setDataTransferThread(Thread dataTransferThread) {
+        this.dataTransferThread = dataTransferThread;
     }
 
     @Override

@@ -8,7 +8,6 @@ import java.nio.file.Paths;
 import java.util.HashMap;
 import java.util.Map;
 
-// TODO: ABORT
 public class Main {
     private static void registerRequiredArgCommand(String commandStr, Command command, Map<String, CommandInfo> commands) {
         commands.put(commandStr, new CommandInfo(command, CommandArgumentRequirement.ARGUMENT_REQUIRED));
@@ -62,6 +61,15 @@ public class Main {
                         while (!session.isClosed()) {
                             var commandStr = session.read();
                             if (commandStr == null) break;
+                            var dataTransferThread = session.getDataTransferThread();
+                            if (dataTransferThread != null) {
+                                System.out.println(commandStr);
+                                if (commandStr.toLowerCase().contains("abor")) {
+                                    dataTransferThread.interrupt();
+                                    continue;
+                                }
+                                dataTransferThread.join();
+                            }
                             var space = commandStr.indexOf(' ');
                             var commandName = commandStr.substring(0, space == -1 ? commandStr.length() : space).toLowerCase();
                             var commandInfo = commands.get(commandName);
@@ -86,7 +94,7 @@ public class Main {
                             }
                             commandInfo.command().execute(commandArg, session);
                         }
-                    } catch (IOException e) {
+                    } catch (IOException | InterruptedException e) {
                         System.err.println(e.getMessage());
                     }
                 }).start();
