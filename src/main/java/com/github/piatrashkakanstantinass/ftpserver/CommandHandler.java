@@ -134,10 +134,12 @@ public class CommandHandler {
                             if (line == null) break;
                             writer.write(line);
                             writer.write(newLine);
+                            writer.flush();
                         } else {
                             var buffer = new byte[1024];
-                            if (inputStream.read(buffer) == -1) break;
-                            outputStream.write(buffer);
+                            var bytesRead = inputStream.read(buffer);
+                            if (bytesRead == -1) break;
+                            outputStream.write(buffer, 0, bytesRead);
                         }
                     }
                 } catch (IOException e) {
